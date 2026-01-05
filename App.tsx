@@ -1,27 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { ChurchService, Assignment, User, ServiceArea, ServiceDay } from './types';
 import { SERVICE_AREAS } from './constants';
-import { formatDate, generateWhatsAppText, downloadCSV } from './lib/utils';
+import { formatDate, generateWhatsAppText, maskPhoneBR } from './lib/utils';
 import { 
   Calendar, 
   Users, 
   Lock, 
   Unlock, 
   Trash2, 
-  Download, 
   MessageCircle, 
   CheckCircle2,
   Plus,
   X,
-  Pencil,
-  Save,
-  Info,
-  Clock,
   ChevronRight,
-  AlertTriangle,
   Phone,
   User as UserIcon,
-  LogOut
+  LogOut,
+  Info
 } from 'lucide-react';
 
 const DAY_NAMES: ServiceDay[] = [
@@ -43,31 +38,53 @@ export default function App() {
   const [newTime, setNewTime] = useState('20:00');
   const [newDesc, setNewDesc] = useState('');
 
-  // Carregar dados iniciais e usuário salvo
+  // Carregar dados iniciais
   useEffect(() => {
+    // Carregar Usuário
     const savedUser = localStorage.getItem('escala_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    if (savedUser) setUser(JSON.parse(savedUser));
+
+    // Carregar Cultos
+    const savedServices = localStorage.getItem('escala_services');
+    if (savedServices) {
+      setServices(JSON.parse(savedServices));
+    } else {
+      // Dados padrão caso o storage esteja vazio
+      const initialServices: ChurchService[] = [
+        { id: 's1', date: '2023-11-23', time: '20:00', dayOfWeek: 'Quinta-feira', isOpen: true, description: 'Culto de Oração' },
+        { id: 's2', date: '2023-11-25', time: '20:00', dayOfWeek: 'Sábado', isOpen: true, description: 'Reunião de Jovens' }
+      ];
+      setServices(initialServices);
     }
 
-    const initialServices: ChurchService[] = [
-      { id: 's1', date: '2023-11-23', time: '20:00', dayOfWeek: 'Quinta-feira', isOpen: true, description: 'Culto de Oração' },
-      { id: 's2', date: '2023-11-25', time: '20:00', dayOfWeek: 'Sábado', isOpen: true, description: 'Reunião de Jovens' },
-      { id: 's3', date: '2023-11-26', time: '09:30', dayOfWeek: 'Domingo', isOpen: false, description: 'EBD' },
-    ];
-    setServices(initialServices);
+    // Carregar Escalas
+    const savedAssignments = localStorage.getItem('escala_assignments');
+    if (savedAssignments) setAssignments(JSON.parse(savedAssignments));
   }, []);
+
+  // Persistir cultos e escalas sempre que mudarem
+  useEffect(() => {
+    if (services.length > 0) {
+      localStorage.setItem('escala_services', JSON.stringify(services));
+    }
+  }, [services]);
+
+  useEffect(() => {
+    localStorage.setItem('escala_assignments', JSON.stringify(assignments));
+  }, [assignments]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginName || !loginPhone) return;
 
-    const role = (loginName.toLowerCase().includes('admin') || loginPhone === '000') ? 'ADMIN' : 'SERVO';
+    // Remove máscara para conferir se é admin ou para salvar dado limpo se preferir
+    const cleanPhone = loginPhone.replace(/\D/g, "");
+    const role = (loginName.toLowerCase().includes('admin') || cleanPhone === '000') ? 'ADMIN' : 'SERVO';
     
     const newUser: User = {
       id: Math.random().toString(36).substr(2, 9),
       name: loginName,
-      whatsapp: loginPhone,
+      whatsapp: loginPhone, // Mantém com máscara para exibição
       role: role
     };
 
@@ -139,7 +156,6 @@ export default function App() {
 
   const sortedServices = [...services].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Tela de Identificação (Login) - Dark
   if (!user) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
@@ -164,11 +180,12 @@ export default function App() {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2 px-1">
-                <Phone className="w-3.5 h-3.5" /> WhatsApp
+                <Phone className="w-3.5 h-3.5" /> WhatsApp (DDD + Número)
               </label>
               <input 
                 type="tel" required placeholder="(00) 00000-0000"
-                value={loginPhone} onChange={e => setLoginPhone(e.target.value)}
+                value={loginPhone} 
+                onChange={e => setLoginPhone(maskPhoneBR(e.target.value))}
                 className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-4 py-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-zinc-600"
               />
             </div>
@@ -201,9 +218,9 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-10">
         {user.role === 'ADMIN' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center shadow-2xl gap-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 flex flex-col md:flex-row justify-between items-center shadow-2xl gap-6 text-white">
             <div className="text-center md:text-left">
-              <h2 className="text-xl font-black text-white mb-1">Painel Administrativo</h2>
+              <h2 className="text-xl font-black mb-1">Painel Administrativo</h2>
               <p className="text-zinc-400 text-sm">Gerencie os cultos e visualize a prontidão da equipe.</p>
             </div>
             <button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl hover:bg-blue-700 transition-all active:scale-95 shrink-0">
@@ -270,7 +287,7 @@ export default function App() {
                           </div>
                         ))
                       ) : (
-                        <p className="text-xs italic text-zinc-600 text-center py-4 bg-zinc-800/30 rounded-2xl border border-dashed border-zinc-800">Escala vazia no momento.</p>
+                        <p className="text-xs italic text-zinc-600 text-center py-4 bg-zinc-800/30 rounded-2xl border border-dashed border-zinc-800">Ninguém escalado.</p>
                       )}
                     </div>
                   </div>
@@ -281,7 +298,7 @@ export default function App() {
                         <div className="bg-green-500/10 text-green-500 p-4 rounded-2xl border border-green-500/20 text-sm font-bold flex items-center gap-3">
                           <CheckCircle2 className="w-6 h-6 shrink-0" /> 
                           <div>
-                            <p className="leading-tight">Confirmado!</p>
+                            <p className="leading-tight">Você está na escala!</p>
                             <p className="text-[10px] font-medium opacity-70">Área: {userInThis.area}</p>
                           </div>
                         </div>
@@ -302,13 +319,13 @@ export default function App() {
                             }}
                             className="w-full bg-white text-black py-4 rounded-2xl font-black text-sm hover:bg-zinc-200 transition-all shadow-xl active:scale-[0.98]"
                           >
-                            CONFIRMAR NA ESCALA
+                            CONFIRMAR PRESENÇA
                           </button>
                         </div>
                       )
                     ) : (
                       <div className="bg-zinc-800/50 p-5 rounded-2xl border border-zinc-800 text-zinc-500 text-sm flex items-center justify-center gap-3 italic font-medium">
-                        <Lock className="w-5 h-5" /> ESCALA ENCERRADA
+                        <Lock className="w-5 h-5" /> ESCALA FECHADA
                       </div>
                     )}
 
@@ -338,7 +355,7 @@ export default function App() {
         </section>
       </main>
 
-      {/* Modal Novo Culto - Dark */}
+      {/* Modal Novo Culto */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setIsAddModalOpen(false)} />
@@ -367,24 +384,20 @@ export default function App() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-black text-zinc-500 uppercase tracking-tighter">DESCRIÇÃO (EX: CEIA)</label>
+                <label className="text-xs font-black text-zinc-500 uppercase tracking-tighter">DESCRIÇÃO (OPCIONAL)</label>
                 <input 
                   type="text" value={newDesc} onChange={e => setNewDesc(e.target.value)} 
-                  placeholder="Nome opcional para o culto" 
+                  placeholder="Ex: Culto de Ceia" 
                   className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-zinc-600" 
                 />
               </div>
               <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-900/20 hover:bg-blue-700 transition-all active:scale-[0.98] mt-4">
-                CRIAR E PUBLICAR
+                PUBLICAR ESCALA
               </button>
             </form>
           </div>
         </div>
       )}
-
-      <footer className="py-12 border-t border-zinc-900 text-center">
-        <p className="text-zinc-600 text-sm font-medium">© 2023 Sistema de Escalas Igreja Local</p>
-      </footer>
     </div>
   );
 }

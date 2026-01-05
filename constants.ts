@@ -1,5 +1,4 @@
-
-import { ServiceArea, ServiceDay } from './types';
+import { ServiceArea, ServiceDay, User } from './types';
 
 export const SERVICE_AREAS: ServiceArea[] = [
   'Recepção',
@@ -16,10 +15,9 @@ export const SERVICE_DAYS: ServiceDay[] = [
   'Domingo'
 ];
 
-export const MOCK_USER = {
+export const MOCK_USER: User = {
   id: 'user-1',
   name: 'Lucas Silva',
-  email: 'lucas@igreja.org',
-  avatar_url: 'https://picsum.photos/seed/lucas/100/100',
+  whatsapp: '(11) 99999-9999',
   role: 'ADMIN' as const
 };

@@ -1,4 +1,3 @@
-
 export function formatDate(dateString: string) {
   // Parsing manually to avoid UTC conversion shifts
   const [year, month, day] = dateString.split('-').map(Number);
@@ -9,6 +8,24 @@ export function formatDate(dateString: string) {
     month: '2-digit',
     year: 'numeric'
   }).format(date);
+}
+
+export function maskPhoneBR(value: string) {
+  if (!value) return "";
+  value = value.replace(/\D/g, ""); // Remove tudo que não é dígito
+  value = value.substring(0, 11); // Limita a 11 dígitos
+
+  const size = value.length;
+  if (size <= 2) {
+    return value.replace(/^(\d{0,2})/, "($1");
+  }
+  if (size <= 6) {
+    return value.replace(/^(\d{2})(\d{0,4})/, "($1) $2");
+  }
+  if (size <= 10) {
+    return value.replace(/^(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
+  }
+  return value.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
 }
 
 export function generateWhatsAppText(serviceDate: string, assignments: any[]) {
