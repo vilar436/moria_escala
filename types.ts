@@ -1,12 +1,11 @@
-
 export type Role = 'ADMIN' | 'SERVO';
 
 export interface User {
   id: string;
   name: string;
-  email: string;
-  avatar_url: string;
+  whatsapp: string;
   role: Role;
+  avatar_url?: string;
 }
 
 export type ServiceDay = 'Quinta-feira' | 'Sábado' | 'Domingo' | 'Segunda-feira' | 'Terça-feira' | 'Quarta-feira' | 'Sexta-feira';
