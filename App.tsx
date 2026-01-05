@@ -16,7 +16,10 @@ import {
   Phone,
   User as UserIcon,
   LogOut,
-  Info
+  Info,
+  Pencil,
+  Bell,
+  AlertTriangle
 } from 'lucide-react';
 
 const DAY_NAMES: ServiceDay[] = [
@@ -28,6 +31,10 @@ export default function App() {
   const [services, setServices] = useState<ChurchService[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingService, setEditingService] = useState<ChurchService | null>(null);
+  const [serviceToConfirmDelete, setServiceToConfirmDelete] = useState<ChurchService | null>(null);
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'info'} | null>(null);
   
   // Login State
   const [loginName, setLoginName] = useState('');
@@ -38,18 +45,23 @@ export default function App() {
   const [newTime, setNewTime] = useState('20:00');
   const [newDesc, setNewDesc] = useState('');
 
+  // Auto-hide toast
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   // Carregar dados iniciais
   useEffect(() => {
-    // Carregar Usuário
     const savedUser = localStorage.getItem('escala_user');
     if (savedUser) setUser(JSON.parse(savedUser));
 
-    // Carregar Cultos
     const savedServices = localStorage.getItem('escala_services');
     if (savedServices) {
       setServices(JSON.parse(savedServices));
     } else {
-      // Dados padrão caso o storage esteja vazio
       const initialServices: ChurchService[] = [
         { id: 's1', date: '2023-11-23', time: '20:00', dayOfWeek: 'Quinta-feira', isOpen: true, description: 'Culto de Oração' },
         { id: 's2', date: '2023-11-25', time: '20:00', dayOfWeek: 'Sábado', isOpen: true, description: 'Reunião de Jovens' }
@@ -57,12 +69,10 @@ export default function App() {
       setServices(initialServices);
     }
 
-    // Carregar Escalas
     const savedAssignments = localStorage.getItem('escala_assignments');
     if (savedAssignments) setAssignments(JSON.parse(savedAssignments));
   }, []);
 
-  // Persistir cultos e escalas sempre que mudarem
   useEffect(() => {
     if (services.length > 0) {
       localStorage.setItem('escala_services', JSON.stringify(services));
@@ -73,23 +83,27 @@ export default function App() {
     localStorage.setItem('escala_assignments', JSON.stringify(assignments));
   }, [assignments]);
 
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+    setToast({ message, type });
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginName || !loginPhone) return;
-
-    // Remove máscara para conferir se é admin ou para salvar dado limpo se preferir
     const cleanPhone = loginPhone.replace(/\D/g, "");
+    if (!loginName.trim()) { alert("Por favor, preencha seu nome."); return; }
+    if (cleanPhone.length < 10) { alert("Por favor, preencha um número de WhatsApp válido com DDD."); return; }
+
     const role = (loginName.toLowerCase().includes('admin') || cleanPhone === '000') ? 'ADMIN' : 'SERVO';
-    
     const newUser: User = {
       id: Math.random().toString(36).substr(2, 9),
       name: loginName,
-      whatsapp: loginPhone, // Mantém com máscara para exibição
+      whatsapp: loginPhone, 
       role: role
     };
 
     setUser(newUser);
     localStorage.setItem('escala_user', JSON.stringify(newUser));
+    showToast(`Bem-vindo, ${loginName.split(' ')[0]}!`);
   };
 
   const handleLogout = () => {
@@ -100,13 +114,20 @@ export default function App() {
   };
 
   const handleDeleteService = (id: string) => {
-    const serviceToDelete = services.find(s => s.id === id);
-    if (!serviceToDelete) return;
-
-    if (window.confirm(`Excluir permanentemente o culto de ${formatDate(serviceToDelete.date)}?`)) {
-      setServices(prev => prev.filter(s => s.id !== id));
-      setAssignments(prev => prev.filter(a => a.serviceId !== id));
+    const service = services.find(s => s.id === id);
+    if (service) {
+      setServiceToConfirmDelete(service);
+      setDeleteConfirmationInput('');
     }
+  };
+
+  const confirmDelete = () => {
+    if (!serviceToConfirmDelete) return;
+    
+    setServices(prev => prev.filter(s => s.id !== serviceToConfirmDelete.id));
+    setAssignments(prev => prev.filter(a => a.serviceId !== serviceToConfirmDelete.id));
+    setServiceToConfirmDelete(null);
+    showToast("Culto removido com sucesso.", "info");
   };
 
   const handleAddService = (e: React.FormEvent) => {
@@ -124,17 +145,44 @@ export default function App() {
     setServices(prev => [...prev, service]);
     setIsAddModalOpen(false);
     setNewDesc('');
+    showToast("Novo culto publicado!");
+  };
+
+  const handleUpdateService = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingService) return;
+
+    const dateObj = new Date(editingService.date + 'T12:00:00');
+    const updatedService: ChurchService = {
+      ...editingService,
+      dayOfWeek: DAY_NAMES[dateObj.getDay()]
+    };
+
+    setServices(prev => prev.map(s => s.id === updatedService.id ? updatedService : s));
+    setEditingService(null);
+    showToast("Culto atualizado.");
   };
 
   const handleToggleStatus = (id: string) => {
     setServices(prev => prev.map(s => s.id === id ? { ...s, isOpen: !s.isOpen } : s));
+    const service = services.find(s => s.id === id);
+    showToast(service?.isOpen ? "Escala fechada." : "Escala aberta para inscrições.", "info");
   };
 
   const handleRegister = (serviceId: string, area: ServiceArea) => {
     if (!user) return;
-    const alreadyRegistered = assignments.some(a => a.serviceId === serviceId && a.userId === user.id);
-    if (alreadyRegistered) {
+    
+    // Verificar se o usuário já está no culto
+    const alreadyInService = assignments.some(a => a.serviceId === serviceId && a.userId === user.id);
+    if (alreadyInService) {
       alert("Você já está inscrito neste culto!");
+      return;
+    }
+
+    // Verificar se a área já foi ocupada (Double Check)
+    const areaTaken = assignments.find(a => a.serviceId === serviceId && a.area === area);
+    if (areaTaken) {
+      alert(`A área "${area}" já foi ocupada por ${areaTaken.userName}. Escolha outra vaga.`);
       return;
     }
 
@@ -146,11 +194,13 @@ export default function App() {
       area
     };
     setAssignments(prev => [...prev, newAssignment]);
+    showToast("Sua inscrição foi confirmada!");
   };
 
   const handleRemoveAssignment = (id: string) => {
     if (window.confirm("Remover esta inscrição da escala?")) {
       setAssignments(prev => prev.filter(a => a.id !== id));
+      showToast("Inscrição removida.", "info");
     }
   };
 
@@ -170,17 +220,17 @@ export default function App() {
           <form onSubmit={handleLogin} className="p-8 space-y-6">
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2 px-1">
-                <UserIcon className="w-3.5 h-3.5" /> Seu Nome Completo
+                <UserIcon className="w-3.5 h-3.5" /> Seu Nome Completo *
               </label>
               <input 
-                type="text" required placeholder="João Silva"
+                type="text" required placeholder="Ex: João Silva"
                 value={loginName} onChange={e => setLoginName(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-4 py-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-zinc-600"
               />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-2 px-1">
-                <Phone className="w-3.5 h-3.5" /> WhatsApp (DDD + Número)
+                <Phone className="w-3.5 h-3.5" /> WhatsApp (DDD + Número) *
               </label>
               <input 
                 type="tel" required placeholder="(00) 00000-0000"
@@ -192,6 +242,7 @@ export default function App() {
             <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-900/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
               Entrar no Sistema <ChevronRight className="w-5 h-5" />
             </button>
+            <p className="text-[10px] text-center text-zinc-600 uppercase tracking-widest font-bold">Campos com * são obrigatórios</p>
           </form>
         </div>
       </div>
@@ -255,9 +306,20 @@ export default function App() {
                       <h3 className="text-2xl font-black text-white">{formatDate(service.date)}</h3>
                     </div>
                     {user.role === 'ADMIN' && (
-                      <button onClick={() => handleDeleteService(service.id)} className="p-2 text-zinc-600 hover:text-red-500 bg-zinc-800 rounded-xl border border-zinc-700 hover:border-red-500/30 transition-all">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setEditingService(service)} 
+                          className="p-2 text-zinc-600 hover:text-blue-500 bg-zinc-800 rounded-xl border border-zinc-700 hover:border-blue-500/30 transition-all"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteService(service.id)} 
+                          className="p-2 text-zinc-600 hover:text-red-500 bg-zinc-800 rounded-xl border border-zinc-700 hover:border-red-500/30 transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -279,8 +341,8 @@ export default function App() {
                               <span className="text-[10px] font-black text-blue-500 uppercase">{a.area}</span>
                               <span className="text-white font-bold">{a.userName}</span>
                             </div>
-                            {user.role === 'ADMIN' && (
-                              <button onClick={() => handleRemoveAssignment(a.id)} className="text-zinc-600 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-all">
+                            {(user.role === 'ADMIN' || a.userId === user.id) && (
+                              <button onClick={() => handleRemoveAssignment(a.id)} className="text-zinc-600 hover:text-red-500 opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100 transition-all">
                                 <X className="w-4 h-4" />
                               </button>
                             )}
@@ -295,12 +357,20 @@ export default function App() {
                   <div className="mt-auto pt-6 border-t border-zinc-800 flex flex-col gap-4">
                     {service.isOpen ? (
                       userInThis ? (
-                        <div className="bg-green-500/10 text-green-500 p-4 rounded-2xl border border-green-500/20 text-sm font-bold flex items-center gap-3">
-                          <CheckCircle2 className="w-6 h-6 shrink-0" /> 
-                          <div>
-                            <p className="leading-tight">Você está na escala!</p>
-                            <p className="text-[10px] font-medium opacity-70">Área: {userInThis.area}</p>
+                        <div className="flex flex-col gap-2">
+                          <div className="bg-green-500/10 text-green-500 p-4 rounded-2xl border border-green-500/20 text-sm font-bold flex items-center gap-3">
+                            <CheckCircle2 className="w-6 h-6 shrink-0" /> 
+                            <div>
+                              <p className="leading-tight">Você está na escala!</p>
+                              <p className="text-[10px] font-medium opacity-70">Área: {userInThis.area}</p>
+                            </div>
                           </div>
+                          <button 
+                            onClick={() => handleRemoveAssignment(userInThis.id)}
+                            className="text-[10px] font-black uppercase text-zinc-500 hover:text-red-500 transition-colors text-center py-2"
+                          >
+                            SAIR DA ESCALA
+                          </button>
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -309,7 +379,19 @@ export default function App() {
                             className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-2xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none cursor-pointer"
                           >
                             <option value="">Selecione sua área...</option>
-                            {SERVICE_AREAS.map(area => <option key={area} value={area}>{area}</option>)}
+                            {SERVICE_AREAS.map(area => {
+                              const occupant = currentAssignments.find(a => a.area === area);
+                              return (
+                                <option 
+                                  key={area} 
+                                  value={area} 
+                                  disabled={!!occupant}
+                                  className={occupant ? "text-zinc-500 italic" : "text-white"}
+                                >
+                                  {area} {occupant ? `— Ocupado por ${occupant.userName}` : '(Disponível)'}
+                                </option>
+                              );
+                            })}
                           </select>
                           <button 
                             onClick={() => {
@@ -355,6 +437,22 @@ export default function App() {
         </section>
       </main>
 
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5 duration-300">
+          <div className={`px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border flex items-center gap-4 ${
+            toast.type === 'success' 
+              ? 'bg-emerald-500/90 text-white border-emerald-400/30' 
+              : 'bg-zinc-800/90 text-zinc-100 border-zinc-700'
+          }`}>
+            <div className="bg-white/20 p-1.5 rounded-lg">
+              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+            </div>
+            <p className="font-bold text-sm tracking-tight">{toast.message}</p>
+          </div>
+        </div>
+      )}
+
       {/* Modal Novo Culto */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -395,6 +493,103 @@ export default function App() {
                 PUBLICAR ESCALA
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Culto */}
+      {editingService && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setEditingService(null)} />
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-in zoom-in slide-in-from-bottom-4 duration-300">
+            <div className="p-8 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50">
+              <h3 className="font-black text-2xl flex items-center gap-3 text-white">
+                <Pencil className="text-blue-500 w-7 h-7" /> EDITAR CULTO
+              </h3>
+              <button onClick={() => setEditingService(null)} className="p-2 hover:bg-zinc-800 rounded-xl transition-colors">
+                <X className="w-6 h-6 text-zinc-500" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateService} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-black text-zinc-500 uppercase tracking-tighter">DATA DO EVENTO</label>
+                <input 
+                  type="date" required 
+                  value={editingService.date} 
+                  onChange={e => setEditingService({...editingService, date: e.target.value})} 
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black text-zinc-500 uppercase tracking-tighter">HORÁRIO</label>
+                <input 
+                  type="time" required 
+                  value={editingService.time} 
+                  onChange={e => setEditingService({...editingService, time: e.target.value})} 
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black text-zinc-500 uppercase tracking-tighter">DESCRIÇÃO</label>
+                <input 
+                  type="text" 
+                  value={editingService.description || ''} 
+                  onChange={e => setEditingService({...editingService, description: e.target.value})} 
+                  placeholder="Ex: Culto de Ceia" 
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-zinc-600" 
+                />
+              </div>
+              <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-900/20 hover:bg-blue-700 transition-all active:scale-[0.98] mt-4">
+                SALVAR ALTERAÇÕES
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      {serviceToConfirmDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setServiceToConfirmDelete(null)} />
+          <div className="bg-zinc-900 border border-red-500/30 rounded-3xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden animate-in zoom-in slide-in-from-bottom-4 duration-300">
+            <div className="p-8 border-b border-zinc-800 bg-red-500/5 flex flex-col items-center text-center gap-4">
+              <div className="bg-red-500/20 p-4 rounded-full text-red-500">
+                <AlertTriangle className="w-10 h-10" />
+              </div>
+              <div>
+                <h3 className="font-black text-2xl text-white">CONFIRMAR EXCLUSÃO</h3>
+                <p className="text-zinc-400 text-sm mt-1">Esta ação é irreversível e removerá todos os servos escalados para este dia.</p>
+              </div>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="space-y-4">
+                <p className="text-zinc-300 text-sm font-medium">
+                  Para confirmar a exclusão do culto de <span className="text-white font-bold">{formatDate(serviceToConfirmDelete.date)}</span>, digite a data abaixo (DD/MM/YYYY):
+                </p>
+                <input 
+                  type="text" 
+                  placeholder="DD/MM/YYYY"
+                  value={deleteConfirmationInput}
+                  onChange={e => setDeleteConfirmationInput(e.target.value)}
+                  className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-red-500 transition-all placeholder:text-zinc-600 text-center font-bold tracking-widest"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setServiceToConfirmDelete(null)}
+                  className="flex-1 bg-zinc-800 text-zinc-400 py-4 rounded-2xl font-bold hover:bg-zinc-700 transition-all"
+                >
+                  CANCELAR
+                </button>
+                <button 
+                  disabled={deleteConfirmationInput !== formatDate(serviceToConfirmDelete.date)}
+                  onClick={confirmDelete}
+                  className="flex-[2] bg-red-600 disabled:bg-zinc-800 disabled:text-zinc-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-red-900/20 hover:bg-red-700 transition-all active:scale-[0.98]"
+                >
+                  EXCLUIR PERMANENTEMENTE
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -12,20 +12,26 @@ export function formatDate(dateString: string) {
 
 export function maskPhoneBR(value: string) {
   if (!value) return "";
-  value = value.replace(/\D/g, ""); // Remove tudo que não é dígito
-  value = value.substring(0, 11); // Limita a 11 dígitos
+  
+  // Remove tudo que não for número
+  let r = value.replace(/\D/g, "");
+  r = r.substring(0, 11); // Limite de 11 dígitos (DDD + 9 dígitos)
 
-  const size = value.length;
-  if (size <= 2) {
-    return value.replace(/^(\d{0,2})/, "($1");
+  if (r.length > 10) {
+    // Celular: (11) 99999-9999
+    r = r.replace(/^(\d{2})(\d{5})(\d{4}).*/, "($1) $2-$3");
+  } else if (r.length > 5) {
+    // Fixo ou digitando: (11) 9999-9999
+    r = r.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, "($1) $2-$3");
+  } else if (r.length > 2) {
+    // Digitando DDD: (11) 9...
+    r = r.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
+  } else if (r.length > 0) {
+    // Iniciando: (1...
+    r = r.replace(/^(\d*)/, "($1");
   }
-  if (size <= 6) {
-    return value.replace(/^(\d{2})(\d{0,4})/, "($1) $2");
-  }
-  if (size <= 10) {
-    return value.replace(/^(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
-  }
-  return value.replace(/^(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  
+  return r;
 }
 
 export function generateWhatsAppText(serviceDate: string, assignments: any[]) {
