@@ -1,0 +1,5 @@
+{
+  "name": "Escala Igreja - MVP",
+  "description": "Sistema de gestão de escala de voluntários para serviços de igreja com exportação para PDF, CSV e WhatsApp.",
+  "requestFramePermissions": []
+}
