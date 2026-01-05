@@ -17,15 +17,10 @@ export interface ChurchService {
   dayOfWeek: ServiceDay;
   isOpen: boolean;
   description?: string;
+  areas?: string[]; // Custom areas for this specific service
 }
 
-export type ServiceArea = 
-  | 'Recepção' 
-  | 'Café' 
-  | 'Coluna 1' 
-  | 'Coluna 2' 
-  | 'Abertura do culto' 
-  | 'Fundo da igreja';
+export type ServiceArea = string;
 
 export interface Assignment {
   id: string;

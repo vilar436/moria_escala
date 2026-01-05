@@ -15,23 +15,31 @@ export function maskPhoneBR(value: string) {
   
   // Remove tudo que não for número
   let r = value.replace(/\D/g, "");
-  r = r.substring(0, 11); // Limite de 11 dígitos (DDD + 9 dígitos)
-
-  if (r.length > 10) {
-    // Celular: (11) 99999-9999
-    r = r.replace(/^(\d{2})(\d{5})(\d{4}).*/, "($1) $2-$3");
-  } else if (r.length > 5) {
-    // Fixo ou digitando: (11) 9999-9999
-    r = r.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, "($1) $2-$3");
-  } else if (r.length > 2) {
-    // Digitando DDD: (11) 9...
-    r = r.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
-  } else if (r.length > 0) {
-    // Iniciando: (1...
-    r = r.replace(/^(\d*)/, "($1");
+  
+  // Se o usuário colar algo com +55, removemos para manter o padrão local
+  if (r.startsWith("55") && r.length > 11) {
+    r = r.substring(2);
   }
   
-  return r;
+  // Limita a 11 dígitos (DDD + 9 dígitos)
+  r = r.substring(0, 11);
+
+  const len = r.length;
+  if (len === 0) return "";
+  
+  // (XX
+  if (len <= 2) return `(${r}`;
+  
+  // (XX) X...
+  if (len <= 6) return `(${r.substring(0, 2)}) ${r.substring(2)}`;
+  
+  // (XX) XXXX-XXXX (Fixo)
+  if (len <= 10) {
+    return `(${r.substring(0, 2)}) ${r.substring(2, 6)}-${r.substring(6)}`;
+  }
+  
+  // (XX) XXXXX-XXXX (Celular)
+  return `(${r.substring(0, 2)}) ${r.substring(2, 7)}-${r.substring(7)}`;
 }
 
 export function generateWhatsAppText(serviceDate: string, assignments: any[]) {
