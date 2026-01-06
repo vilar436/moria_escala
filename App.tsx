@@ -58,6 +58,7 @@ interface ChurchSettings {
   name: string;
   logo: string | null;
   primaryColor: string;
+  whatsapp: string;
 }
 
 // Helper to convert hex to RGB for CSS variables (to support opacities)
@@ -78,7 +79,8 @@ export default function App() {
   const [churchSettings, setChurchSettings] = useState<ChurchSettings>({
     name: 'Escala Igreja',
     logo: null,
-    primaryColor: '#2563eb' // Default Blue
+    primaryColor: '#2563eb', // Default Blue
+    whatsapp: ''
   });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1060,6 +1062,11 @@ export default function App() {
                     </div>
 
                     <div className="space-y-2">
+                      <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest px-1">WhatsApp da Igreja</label>
+                      <input type="tel" value={churchSettings.whatsapp} onChange={e => setChurchSettings(prev => ({ ...prev, whatsapp: maskPhoneBR(e.target.value) }))} placeholder="(00) 00000-0000" maxLength={15} className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-brand transition-all font-bold" />
+                    </div>
+
+                    <div className="space-y-2">
                       <div className="flex items-center gap-2 px-1 mb-2">
                         <Palette className="w-3.5 h-3.5 text-zinc-500" />
                         <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Cor Principal do Aplicativo</label>
@@ -1165,7 +1172,6 @@ export default function App() {
         </div>
       )}
 
-      {/* OS OUTROS MODAIS PERMANECEM IGUAIS... */}
       {/* CADASTRO SERVO */}
       {isAddVolunteerModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
